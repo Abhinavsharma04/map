@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <style>
+      /* Always set the map height explicitly to define the size of the div
+       * element that contains the map. */
+      #map {
+        height: 100%;
+      }
+      /* Optional: Makes the sample page fill the window. */
+      html, body {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="map"></div>
+<!-- The core Firebase JS SDK is always required and must be listed first -->
+<script src="https://www.gstatic.com/firebasejs/5.3.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/5.3.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/5.3.0/firebase-database.js"></script>
+    <script>
+
+ // Your web app's Firebase configuration
+  var firebaseConfig = {
+    apiKey: "AIzaSyB88bpDtA31MyEptLa2NNbdPid6qwatmu4",
+    authDomain: "test-6b738.firebaseapp.com",
+    databaseURL: "https://test-6b738.firebaseio.com",
+    projectId: "test-6b738",
+    storageBucket: "test-6b738.appspot.com",
+    messagingSenderId: "979625491295",
+    appId: "1:979625491295:web:d1a673629a63d1703414ea"
+  };
+  // Initialize Firebase
+  firebase.initializeApp(firebaseConfig);
+/**
+ * Data object to be written to Firebase.
+ */
+var data = {sender: null, timestamp: null, lat: null, lng: null};
+
+
+      /**
+      * Starting point for running the program. Authenticates the user.
+      * @param {function()} onAuthSuccess - Called when authentication succeeds.
+      */
+      function initAuthentication(onAuthSuccess) {
+        firebase.auth().signInAnonymously().catch(function(error) {
+          console.log(error.code + ', ' + error.message);
+        }, {remember: 'sessionOnly'});
+
+        firebase.auth().onAuthStateChanged(function(user) {
+          if (user) {
+            data.sender = user.uid;
+            onAuthSuccess();
+          } else {
+            // User is signed out.
+          }
+        });
+      }
+
+      /**
+       * Creates a map object with a click listener and a heatmap.
+       */
+      function initMap() {
+        var map = new google.maps.Map(document.getElementById('map'), {
+          center: {lat: 26.9124, lng: 75.7873},
+          zoom: 12,
+          styles: [{
+            featureType: 'poi',
+            stylers: [{ visibility: 'off' }]  // Turn off POI.
+          },
+          {
+            featureType: 'transit.station',
+            stylers: [{ visibility: 'off' }]  // Turn off bus, train stations etc.
+          }],
+          disableDoubleClickZoom: true,
+          streetViewControl: false,
+        });
+		
+       
+        // Listen for clicks and add the location of the click to firebase.
+        map.addListener('click', function(e) {
+          data.lat = e.latLng.lat();
+          data.lng = e.latLng.lng();
+		  addToFirebase(data);
+        });
+
+          poly = new google.maps.Polyline({
+          strokeColor: '#000000',
+          strokeOpacity: 1.0,
+          strokeWeight: 3
+        });
+        poly.setMap(map);
+
+        // Add a listener for the click event
+        map.addListener('click', addLatLng);
+      // Handles click events on a map, and adds a new point to the Polyline.
+     
+        
+
+        initAuthentication(initFirebase.bind(undefined));
+		}
+     // Handles click events on a map, and adds a new point to the Polyline.
+      function addLatLng(event) {
+        var path = poly.getPath();
+
+        // Because path is an MVCArray, we can simply append a new coordinate
+        // and it will automatically appear.
+        path.push(event.latLng);
+
+        // Add a new marker at the new plotted point on the polyline.
+      
+      }
+      /**
+       * Set up a Firebase with deletion on clicks older than expiryMs
+       * @param {!google.maps.visualization.HeatmapLayer} heatmap The heatmap to
+       */
+      function initFirebase() {
+
+     
+
+        // Reference to the clicks in Firebase.
+        var clicks = firebase.database().ref('clicks');
+
+        // Listen for clicks and add them to the heatmap.
+        clicks.orderByChild('timestamp').on('child_added',
+          function(snapshot) {
+            // Get that click from firebase.
+            var newPosition = snapshot.val();
+            var point = new google.maps.LatLng(newPosition.lat, newPosition.lng);
+            
+
+            // Add the point to the heatmap.
+          var path = poly.getPath();
+
+        // Because path is an MVCArray, we can simply append a new coordinate
+        // and it will automatically appear.
+        path.push(point);
+
+    
+          }
+        );}
+      
+/**
+       * Updates the last_message/ path with the current timestamp.
+       * @param {function(Date)} addClick After the last message timestamp has been updated,
+       *     this function is called with the current timestamp to add the
+       *     click to the firebase.
+       */
+      function getTimestamp(addClick) {
+        // Reference to location for saving the last click time.
+        var ref = firebase.database().ref('last_message/' + data.sender);
+
+        ref.onDisconnect().remove();  // Delete reference from firebase on disconnect.
+
+        // Set value to timestamp.
+        ref.set(firebase.database.ServerValue.TIMESTAMP, function(err) {
+          if (err) {  // Write to last message was unsuccessful.
+            console.log(err);
+          } else {  // Write to last message was successful.
+            ref.once('value', function(snap) {
+              addClick(snap.val());  // Add click with same timestamp.
+            }, function(err) {
+              console.warn(err);
+            });
+          }
+        });
+      }
+
+      /**
+       * Adds a click to firebase.
+       * @param {Object} data The data to be added to firebase.
+       *     It contains the lat, lng, sender and timestamp.
+       */
+      function addToFirebase(data) {
+        getTimestamp(function(timestamp) {
+          // Add the new timestamp to the record data.
+          data.timestamp = timestamp;
+          var ref = firebase.database().ref('clicks').push(data, function(err) {
+            if (err) {  // Data was not written to firebase.
+              console.warn(err);
+            }
+          });
+        });
+      }
+    </script>
+    <script async defer
+        src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBSX5AsqDEKoj3Epovh_wttCBVW3Df2ZSE&libraries=visualization&callback=initMap">
+    </script>
+  </body>
+</html>
